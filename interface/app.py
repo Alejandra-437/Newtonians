@@ -2,27 +2,32 @@ import gradio as gr
 import numpy as np
 import pandas as pd
 import joblib
-from logistic_model import OneVsRestLogisticRegression, LogisticRegressionGD
+from logistic_model import OneVsRestLogisticRegression, ManualScaler, OneVsRestLogisticRegression, ParkinsonPredictor
 from linear_model import LaptopPricePredictor
 
-# carga el modelo Parkinson
-_ = OneVsRestLogisticRegression
-_ = LogisticRegressionGD
-modelo = joblib.load("interface/modelo_parkinson.pkl")
-scaler = joblib.load("interface/scaler_parkinson.pkl")
-features = joblib.load("interface/features_parkinson.pkl")
+# Cargar datos
+df = pd.read_csv("datasources/parkinsons/parkinsons.data").drop_duplicates()
+X = df.drop(['name', 'status'], axis=1)
+y = df['status']
+feature_names = X.columns.tolist()
 
-# carga el modelo de laptop
-predictor = LaptopPricePredictor()
-predictor.fit()
+# Entrenar modelo
+scaler = ManualScaler()
+X_scaled = scaler.fit_transform(X)
 
-#funcion de predicion de parkinson
+model = OneVsRestLogisticRegression(learning_rate=0.1, n_iterations=1000)
+model.fit(X_scaled, y)
+
+# Crear instancia del predictor
+predictor_parkinson = ParkinsonPredictor(model, scaler, feature_names)
+predictor_laptop = LaptopPricePredictor()
+predictor_laptop.fit()
+
+# Función para la interfaz
 def predecir_parkinson(*inputs):
-    datos = np.array([inputs])
-    df = pd.DataFrame(datos, columns=features)
-    datos_escalados = scaler.transform(df)
-    pred = modelo.predict(datos_escalados)
-    return "Persona con Parkinson" if pred[0] == 1 else "Persona Sana"
+    raw_line = ",".join(str(x) for x in inputs)
+    resultado = predictor_parkinson.predict(raw_line)
+    return "Persona con Parkinson" if resultado == 1 else "Persona Sana"
 
 # funcion de predicción Laptop
 def predecir_laptop(
@@ -42,12 +47,12 @@ def predecir_laptop(
         "Gpu": Gpu,
         "Memory": Memory
     }
-    price = predictor.predict_price_usd(input_data)
+    price = predictor_laptop.predict_price_usd(input_data)
     return f"${price:,.2f} USD"
 
 interface_parkinson = gr.Interface(
     fn=predecir_parkinson,
-    inputs=[gr.Number(label=feat) for feat in features],
+    inputs=[gr.Number(label=feat) for feat in feature_names],
     outputs=gr.Textbox(label="Resultado"),
     title="Clasificador de Parkinson",
     theme="soft"
