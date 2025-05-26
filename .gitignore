@@ -1,2 +1,9 @@
 ./venv
 /.venv
+
+# Ignorar carpetas específicas
+.ipynb_checkpoints/
+anaconda_projects/
+
+# Ignorar archivos temporales de Jupyter
+*.ipynb_checkpoints/*
